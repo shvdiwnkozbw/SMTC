@@ -1,6 +1,6 @@
 python -W ignore -m torch.distributed.launch --nproc_per_node=4 --use_env \
 		src/train.py \
-        --basepath /path/to/training/data \
+        --basepath /mnt/data/mmlab_ie/qianrui/ytvos_all \
         --batch_size 32 \
         --seed 0 \
         --num_iterations 3 \

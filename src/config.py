@@ -16,8 +16,6 @@ def setup_path(args):
     resolution = args.resolution
     flow_to_rgb = args.flow_to_rgb
     gap = args.gap
-    num_o = args.num_o
-    num_t = args.num_t
     dim = args.hidden_dim
     verbose = args.verbose if args.verbose else 'none'
     flow_to_rgb_text = 'rgb' if flow_to_rgb else 'uv'
@@ -28,7 +26,7 @@ def setup_path(args):
     now = datetime.now()
     dt_string = now.strftime("%Y_%m_%d_%H_%M")
     dir_name = f'{dt_string}-{dataset}-{flow_to_rgb_text}-dim_{dim}' + \
-                   f'gap_{gap}_t_{num_t}_o_{num_o}-lr_{args.lr}-bs_{batch_size}'
+                   f'gap_{gap}_-lr_{args.lr}-bs_{batch_size}'
 
     logPath = os.path.join(args.output_path, dir_name, 'log')
 
@@ -108,6 +106,12 @@ def setup_dataset(args):
                     'hummingbird', 'soldier', 'bmx', 'frog', 'penguin', 'monkey', 'bird_of_paradise']
         val_data_dir = [val_flow_dir, img_dir, gt_dir]
 
+    elif args.dataset == 'YTVOS':
+        basepath = args.basepath
+        img_dir = basepath + '/JPEGImages'
+        gt_dir = basepath + '/Annotations'
+        val_data_dir = None
+
     else:
         raise ValueError('Unknown Setting.')
     
@@ -115,8 +119,11 @@ def setup_dataset(args):
     data_dir = [flow_dir, img_dir, gt_dir]
     trn_dataset = Dataloader(data_dir=data_dir, dataset=args.dataset, resolution=resolution, gap=args.gap, to_rgb=args.flow_to_rgb, seq_length=args.num_frames,
                              train=True)
-    val_dataset = Dataloader(data_dir=val_data_dir, dataset=args.dataset, resolution=resolution, gap=args.gap, to_rgb=args.flow_to_rgb,
-                             train=False, val_seq=val_seq)
+    if args.dataset == 'YTVOS':
+        val_dataset = None
+    else:
+        val_dataset = Dataloader(data_dir=val_data_dir, dataset=args.dataset, resolution=resolution, gap=args.gap, to_rgb=args.flow_to_rgb,
+                                train=False, val_seq=val_seq)
     in_out_channels = 3 if args.flow_to_rgb else 2
     use_flow = False if args.flow_to_rgb else True
     loss_scale = args.loss_scale

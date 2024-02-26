@@ -18,7 +18,6 @@ from torch.utils.tensorboard import SummaryWriter
 from scipy.optimize import linear_sum_assignment
 from argparse import ArgumentParser
 from model.model_twostage import SlotAttentionAutoEncoder
-from model.unet import UNet
 from utils import temporal_loss, warp_loss
 import random
 from utils import save_on_master, Augment_GPU_pre
@@ -54,8 +53,6 @@ def main(args):
     attn_drop_f = args.attn_drop_f
     attn_drop_t = args.attn_drop_t
     path_drop = args.path_drop
-    num_o = args.num_o
-    num_t = args.num_t
     bi_cons = args.bi_cons
     entro_cons = args.entro_cons
     replicate = args.replicate
@@ -74,7 +71,7 @@ def main(args):
     print(logPath)
 
     # initialize dataloader (validation bsz has to be 1 for FBMS, because of different resolutions, otherwise, can be >1)
-    trn_dataset, resolution, in_out_channels, use_flow, loss_scale, ent_scale, cons_scale = cg.setup_dataset(args)
+    trn_dataset, _, resolution, in_out_channels, use_flow, loss_scale, ent_scale, cons_scale = cg.setup_dataset(args)
     
     if True:  # args.distributed:
         num_tasks = ut.get_world_size()
@@ -105,8 +102,6 @@ def main(args):
                                      path_drop=path_drop,
                                      attn_drop_t=attn_drop_t,
                                      attn_drop_f=attn_drop_f,
-                                     num_o=num_o,
-                                     num_t=num_t,
                                      num_frames=num_frames,
                                      teacher=False,
                                      dino_path=dino_path)
@@ -120,8 +115,6 @@ def main(args):
                                      path_drop=path_drop,
                                      attn_drop_t=attn_drop_t,
                                      attn_drop_f=attn_drop_f,
-                                     num_o=num_o,
-                                     num_t=num_t,
                                      num_frames=num_frames,
                                      teacher=True,
                                      dino_path=dino_path)
@@ -386,7 +379,7 @@ if __name__ == "__main__":
     parser.add_argument('--sudo_scale', type=float, default=0.0)
     parser.add_argument('--grad_iter', type=int, default=0)
     #settings
-    parser.add_argument('--dataset', type=str, default='DAVIS', choices=['DAVIS', 'DAVIS2017', 'FBMS', 'STv2'])
+    parser.add_argument('--dataset', type=str, default='DAVIS', choices=['DAVIS', 'YTVOS', 'FBMS', 'STv2'])
     parser.add_argument('--with_rgb', action='store_true')
     parser.add_argument('--flow_to_rgb', action='store_true')
     parser.add_argument('--bi_cons', action='store_true')
