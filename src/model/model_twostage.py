@@ -148,8 +148,10 @@ class SlotAttention(nn.Module):
             q = self.project_q(slots)
             dots = torch.einsum('bkid,bjd->bkij', q, k) * self.scale
             attn = dots.softmax(dim=2) + self.eps
-            attn = attn * torch.softmax(semantic_attn, dim=1).unsqueeze(2)
-            attn = attn / attn.sum(dim=-1, keepdim=True)  # weighted mean.
+            semantic_mask = torch.softmax(semantic_attn, dim=1)
+            semantic_mask = (semantic_attn>0.3).float()
+            attn = attn * semantic_mask.unsqueeze(2)
+            attn = attn / (attn.sum(dim=-1, keepdim=True)+1e-8)  # weighted mean.
 
             updates = torch.einsum('bjd,bkij->bkid', v, attn)
             slots = slots_prev + updates
@@ -159,9 +161,6 @@ class SlotAttention(nn.Module):
 
         instance_slots = slots
         instance_attn = dots
-        # q = self.project_q(self.norm_slots(slots))
-        # dots = torch.einsum('bid,bjd->bij', q, k) * self.scale
-        # attn = dots.softmax(dim=1) + self.eps
 
         return semantic_slots, semantic_attn, instance_slots, instance_attn
 
@@ -180,7 +179,7 @@ class SlotAttentionAutoEncoder(nn.Module):
                        attn_drop_f=0.2,
                        num_frames=7,
                        teacher=False,
-                       dino_path='/home/ma-user/work/shuangrui/01_feature_warp/dino_deitsmall16_pretrain.pth'
+                       dino_path='/path/to/dino/weights'
                 ):
         """Builds the Slot Attention-based Auto-encoder.
         Args:
@@ -206,7 +205,7 @@ class SlotAttentionAutoEncoder(nn.Module):
         self.down_time = 16
         self.end_size = (resolution[0] // self.down_time, resolution[1] // self.down_time)
         
-        self.transport_proj = nn.Conv1d(32*32, self.encoder_dims, kernel_size=1, padding=0)
+        self.transport_proj = nn.Conv1d(self.end_size[0]*self.end_size[1], self.encoder_dims, kernel_size=1, padding=0)
         self.teacher = teacher
         self.mlp_slot = nn.Sequential(
             nn.Linear(self.encoder_dims, 2*self.encoder_dims), ##TODO: test mlp_ratio
@@ -221,43 +220,44 @@ class SlotAttentionAutoEncoder(nn.Module):
             hidden_dim=self.encoder_dims)
 
     def forward(self, image, weight=0.01, p_s=None):
-        ## input: 'image' has shape B, 5(T), C, H, W  
-        ##        'p_s' has shape B, 4 (random sample)
+        ## input: 'image' has shape B, T, C, H, W  
         ## output:
-        ###### 'sudo_mask' has shape B, 7, (H, W) 
-        ###### 'slots' has shape B, (7, 2), 2(num_slot), C
-        ###### 'motion_mask' has shape B, (7, 2), 2(num_slot), (H, W) 
-        ###### 'slot_warp' has shape B (7, 2), C
-        ###### 'x_warp' has shape B, (7, 2), C
+        ###### 'semantic_mask' has shape B, T, S, HW
+        ###### 'slots' has shape B, T, S, C
+        ###### 'instance' has shape B, T, S, P, C
+        ###### 'instance_mask' has shape B, T, S, P, HW
         
-        # Convolutional encoder with position embedding.
         bs = image.shape[0]
         image_t = einops.rearrange(image, 'b t c h w -> (b t) c h w')
         x, cls_token, attn, k = self.encoder(image_t)  # CNN Backbone/ DINO backbone
+        h, w = x.shape[-2:]
         x = einops.rearrange(x, '(b t) c h w -> b t c (h w)', t=self.T) ##spatial_flatten
+        resize_k = F.interpolate(k, (self.end_size[0], self.end_size[1]), mode='bilinear') #satisfy the channel dimension of projection layer
         k = einops.rearrange(k, '(b t) c h w -> b t c (h w)', t=self.T)
+        resize_k = einops.rearrange(resize_k, '(b t) c h w -> b t c (h w)', t=self.T)
         frame = einops.rearrange(k, 'b t c hw -> b t hw c')
-        correlation_map = self.calculate_transport(k, torch.roll(k, shifts=1, dims=1))
+        correlation_map = self.calculate_transport(k, torch.roll(resize_k, shifts=1, dims=1))
         k = k + correlation_map
         k = einops.rearrange(k, 'b t c hw -> b t hw c')
 
-        sudo_mask = attn[:, :, 0, 1:].mean(dim=1)
-        sudo_mask = sudo_mask / sudo_mask.sum(dim=-1, keepdim=True)
-        sudo_mask = einops.rearrange(sudo_mask, '(b t) hw -> b t hw', t=self.T)
-        
-        slots, motion_mask, instance, instance_mask = self.decode(x, k, weight, ts=self.T)
+        slots, semantic_mask, instance, instance_mask = self.decode(x, k, weight, ts=self.T)
         if p_s is None:
-            motion_mask = F.softmax(motion_mask, dim=-2) + 1e-8
-            return sudo_mask, x, motion_mask, self.end_size[0]
+            slots = F.normalize(slots, dim=-1, p=2)
+            instance = F.normalize(instance, dim=-1, p=2)
+            similarity = torch.einsum('btsc,btspc->btsp', slots, instance)
+            semantic_mask = F.softmax(semantic_mask, dim=-2)
+            instance_mask = F.softmax(instance_mask, dim=-2)
+            instance_mask = semantic_mask.unsqueeze(-2) * instance_mask
+            return semantic_mask, similarity, instance_mask, h, w
         else:
             warp_instance = self.mlp_slot(instance)
             warp_instance = F.normalize(warp_instance, dim=-1, p=2)
-            return motion_mask, frame, slots, instance, warp_instance
+            return semantic_mask, frame, slots, instance, warp_instance
     
     def calculate_transport(self, x_start, x_end):
         b, t, c, n = x_start.shape
         x_start = x_start.view(b*t, c, n)
-        x_end = x_end.view(b*t, c, n)
+        x_end = x_end.view(b*t, c, self.end_size[0]*self.end_size[1])
         correlation = torch.einsum('bcn,bcm->bnm', x_end, x_start)
         correlation = self.transport_proj(correlation)
         return correlation.view(b, t, self.encoder_dims, n)
@@ -265,28 +265,28 @@ class SlotAttentionAutoEncoder(nn.Module):
     def decode(self, x, k, weight, ts=7):
         # x bs t hw c
         # slot bs t s c
-        # motion_mask bs t s hw
+        # semantic_mask bs t s hw
         bs = x.shape[0]
         x = einops.rearrange(x, 'b t hw c -> (b t) hw c')
         k = einops.rearrange(k, 'b t hw c -> (b t) hw c')
-        slots, motion_mask, instance, instance_mask = self.slot_attention(k, bs, weight) 
+        slots, semantic_mask, instance, instance_mask = self.slot_attention(k, bs, weight) 
         slots = einops.rearrange(slots, '(b t) s c -> b t s c', b=bs)
-        motion_mask = einops.rearrange(motion_mask, '(b t) s hw -> b t s hw', b=bs)
+        semantic_mask = einops.rearrange(semantic_mask, '(b t) s hw -> b t s hw', b=bs)
         instance = einops.rearrange(instance, '(b t) s p c -> b t s p c', b=bs)
         instance_mask = einops.rearrange(instance_mask, '(b t) s p hw -> b t s p hw', b=bs)
-        return slots, motion_mask, instance, instance_mask
+        return slots, semantic_mask, instance, instance_mask
 
 
 if __name__ == "__main__":
-    model = SlotAttentionAutoEncoder(resolution=(192, 384), 
-                       num_slots=2, 
+    model = SlotAttentionAutoEncoder(resolution=(256, 256), 
+                       num_slots=16, 
                        in_channels=3, 
                        out_channels=3, 
                        hid_dim=32,
                        iters=5, 
                        path_drop=0.1,
                        attn_drop_t=0.4,
-                       num_frames=7)
+                       num_frames=4)
     model.to('cuda')
-    input = torch.randn(2, 7, 3, 192, 384)
+    input = torch.randn(2, 4, 3, 256, 256)
     model(input.to('cuda'))

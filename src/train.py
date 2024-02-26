@@ -35,7 +35,6 @@ def main(args):
     seed = args.seed + ut.get_rank()
     random.seed(seed)
     torch.manual_seed(seed)
-#     torch.cuda.seed(seed)
     np.random.seed(seed)
 
     cudnn.benchmark = True
@@ -43,7 +42,6 @@ def main(args):
     print(f"world_size:{ut.get_world_size()}")
     num_tasks = ut.get_world_size()
     lr = args.lr
-    # args.lr = lr
     epsilon = 1e-5
     num_slots = args.num_slots
     num_instances = args.num_instances
@@ -74,7 +72,6 @@ def main(args):
     # setup log and model path, initialize tensorboard,
     [logPath, modelPath, resultsPath] = cg.setup_path(args)
     print(logPath)
-    # writer = SummaryWriter(logPath)
 
     # initialize dataloader (validation bsz has to be 1 for FBMS, because of different resolutions, otherwise, can be >1)
     trn_dataset, resolution, in_out_channels, use_flow, loss_scale, ent_scale, cons_scale = cg.setup_dataset(args)
@@ -161,11 +158,10 @@ def main(args):
             {'params': regularized}, {'params': not_regularized, 'weight_decay': 0.}]
     
     param_groups = get_params_groups(model)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     optimizer = torch.optim.AdamW(param_groups, lr=lr)
     optimizer.param_groups[0]['weight_decay'] = 0.04
-#     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
     criterion = nn.CrossEntropyLoss()
+
     def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0, start_warmup_value=0):
         warmup_schedule = np.array([])
         warmup_iters = warmup_epochs * niter_per_ep
@@ -178,26 +174,10 @@ def main(args):
         schedule = np.concatenate((warmup_schedule, schedule))
         assert len(schedule) == epochs * niter_per_ep
         return schedule
+
     lr_scheduler = cosine_scheduler(lr, 0.1*lr, num_it//len(trn_loader), len(trn_loader), 0)
     wd_scheduler = cosine_scheduler(0.1, 0.1, num_it//len(trn_loader), len(trn_loader))
     
-    # if resume_path:
-    #     print('resuming from checkpoint')
-    #     checkpoint = torch.load(resume_path, map_location='cpu')
-    #     model.load_state_dict(checkpoint['model_state_dict'])
-    #     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    #     it = checkpoint['iteration']
-    #     loss = checkpoint['loss']
-    #     ent_scale = ent_scale * 5.0 ** (it // decay_step)
-    #     cons_scale = cons_scale * 5.0 ** (it // decay_step)
-    #     ut.set_learning_rate(optimizer, lr * (0.5 ** (it // decay_step)))
-    #     print('it:', it)
-    #     print('lr:', lr * (0.5 ** (it // decay_step)))
-    #     print('scale parameter:', ent_scale, cons_scale)
-    #     del checkpoint
-    # else:
-    #     print('training from dino pretrained')
-     
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
@@ -336,7 +316,7 @@ def filter_valid_instance(mask, semantic, instance):
     # instance b t s p c
     # valid b t s p
     mask = F.softmax(mask, dim=-2)
-    mask = (mask>0.5).float()
+    mask = (mask>0.3).float()
     mask = torch.mean(mask, dim=-1, keepdim=True)
     semantic = F.normalize(semantic, dim=-1)
     instance = F.normalize(instance, dim=-1)
@@ -396,7 +376,7 @@ if __name__ == "__main__":
     #optimization
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--lr', type=float, default=4e-5)
-    parser.add_argument('--num_train_steps', type=int, default=1e5) #300k
+    parser.add_argument('--num_train_steps', type=int, default=3e4)
     parser.add_argument('--warmup_steps', type=int, default=1e3)
     parser.add_argument('--decay_steps', type=int, default=1e4)
     parser.add_argument('--decay_rate', type=float, default=0.5)
@@ -406,14 +386,14 @@ if __name__ == "__main__":
     parser.add_argument('--sudo_scale', type=float, default=0.0)
     parser.add_argument('--grad_iter', type=int, default=0)
     #settings
-    parser.add_argument('--dataset', type=str, default='DAVIS', choices=['DAVIS', 'MoCA', 'FBMS', 'STv2'])
+    parser.add_argument('--dataset', type=str, default='DAVIS', choices=['DAVIS', 'DAVIS2017', 'FBMS', 'STv2'])
     parser.add_argument('--with_rgb', action='store_true')
     parser.add_argument('--flow_to_rgb', action='store_true')
     parser.add_argument('--bi_cons', action='store_true')
     parser.add_argument('--entro_cons', action='store_true')
     parser.add_argument('--replicate', action='store_true')
     # architecture
-    parser.add_argument('--num_frames', type=int, default=3)
+    parser.add_argument('--num_frames', type=int, default=4)
     parser.add_argument('--num_slots', type=int, default=16)
     parser.add_argument('--num_instances', type=int, default=4)
     parser.add_argument('--num_iterations', type=int, default=3)

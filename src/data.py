@@ -8,8 +8,6 @@ import numpy as np
 import glob as gb
 from utils import read_flo
 from torch.utils.data import Dataset
-# from cvbase.optflow.visualize import flow2rgb
-
 
 
 def readRGB(sample_dir, resolution):
@@ -18,10 +16,8 @@ def readRGB(sample_dir, resolution):
         rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
     except:
         print(sample_dir)
-#     rgb = ((rgb / 255.0) - 0.5) * 2.0
     rgb = rgb / 255
     rgb = cv2.resize(rgb, (resolution[1], resolution[0]), interpolation=cv2.INTER_LINEAR)
-#     rgb = np.clip(rgb, -1., 1.)
     return einops.rearrange(rgb, 'h w c -> c h w')
 
 def readSeg(sample_dir, resolution=None):
@@ -93,20 +89,16 @@ class Dataloader(Dataset):
                 rgbs = np.stack([readRGB(rgb_dir, self.resolution) for rgb_dir in rgb_dirs], axis=0)
                 gt_dirs = os.listdir(os.path.join(self.data_dir[2], seq_name))
                 gt_dirs = sorted([gt for gt in gt_dirs if gt.endswith(".png")])
-#                 print(gt_dirs)
                 val_idx = [int(x[:-4])-int(gt_dirs[0][:-4]) for x in gt_dirs if x.endswith(".png")]
-#                 print(val_idx)
                 gt_dirs = [os.path.join(self.data_dir[2], seq_name, x) for x in gt_dirs if x.endswith(".png")]  
                 gts = np.stack([readSeg(gt_dir) for gt_dir in gt_dirs], axis=0)
                 return rgbs, gts, seq_name, val_idx
             else:
                 seq_name = self.seq[idx]
                 tot = len(glob.glob(os.path.join(self.data_dir[1], seq_name, '*')))
-                rgb_dirs = [os.path.join(self.data_dir[1], seq_name, str(i).zfill(5)+'.jpg') for i in range(tot-1)]
-#                 flow_dirs = [os.path.join(self.data_dir[0], 'Flows_gap-1', seq_name, str(i).zfill(5)+'.flo') for i in range(1, tot)]
-                gt_dirs = [os.path.join(self.data_dir[2], seq_name, str(i).zfill(5)+'.png') for i in range(tot-1)]
+                rgb_dirs = [os.path.join(self.data_dir[1], seq_name, str(i).zfill(5)+'.jpg') for i in range(tot)]
+                gt_dirs = [os.path.join(self.data_dir[2], seq_name, str(i).zfill(5)+'.png') for i in range(tot)]
                 rgbs = np.stack([readRGB(rgb_dir, self.resolution) for rgb_dir in rgb_dirs], axis=0)
-#                 flows = np.stack([readFlow(flow_dir, self.resolution, self.to_rgb) for flow_dir in flow_dirs], axis=0) 
                 gts = np.stack([readSeg(gt_dir) for gt_dir in gt_dirs], axis=0)
-                return rgbs, gts, seq_name, [i for i in range(tot-1)]
+                return rgbs, gts, seq_name, [i for i in range(tot)]
                 
