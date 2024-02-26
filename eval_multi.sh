@@ -1,16 +1,16 @@
-# python -W ignore src/eval_multi.py \
-#         --basepath /mnt/data/mmlab_ie/qianrui/davis/DAVIS \
-#         --batch_size 1 \
-#         --num_iterations 5 \
-#         --num_slots 16 \
-#         --num_instances 4 \
-#         --gap 4 \
-#         --hidden_dim 16 \
-#         --num_frames 4 \
-#         --output_path test_log \
-#         --dino_path dino_small_16.pth \
-# 		--dataset DAVIS2017 \
-#         --resume_path /mnt/data/mmlab_ie/qianrui/MG_factory/test_log/2024_02_24_19_34-DAVIS-rgb-dim_16gap_4_t_1_o_0-lr_2e-05-bs_32/model/checkpoint_7000_iou_0.pth
+python -W ignore src/eval_multi.py \
+        --basepath /path/to/evaluation/data \
+        --batch_size 1 \
+        --num_iterations 5 \
+        --num_slots 16 \
+        --num_instances 4 \
+        --gap 4 \
+        --hidden_dim 16 \
+        --num_frames 4 \
+        --output_path test_log \
+        --dino_path dino_small_16.pth \
+		--dataset DAVIS2017 \
+        --resume_path /path/to/checkpoint
     
 cd davis2017-evaluation
 
