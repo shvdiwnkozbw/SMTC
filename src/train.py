@@ -251,6 +251,8 @@ def main(args):
             with torch.no_grad():
                 momentum = 0.0 if it < 0 else 0.999
                 for (name_q, param_q), (name_k, param_k) in zip(model.named_parameters(), teacher.named_parameters()):
+                    if 'encoder' in name_q:
+                        continue
                     param_k.data = param_k.data * momentum + param_q.data * (1-momentum)
 
             it += 1
@@ -369,7 +371,7 @@ if __name__ == "__main__":
     #optimization
     parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--lr', type=float, default=4e-5)
-    parser.add_argument('--num_train_steps', type=int, default=3e4)
+    parser.add_argument('--num_train_steps', type=int, default=1e4)
     parser.add_argument('--warmup_steps', type=int, default=1e3)
     parser.add_argument('--decay_steps', type=int, default=1e4)
     parser.add_argument('--decay_rate', type=float, default=0.5)
