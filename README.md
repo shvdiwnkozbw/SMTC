@@ -4,6 +4,10 @@ Code of ICCV paper [Semantics Meets Temporal Correspondence: Self-supervised Obj
 
 We propose a two-stage slot attention design, named semantic-aware masked slot attention, to jointly utilize rich semantics and fine-grained temporal correspondence in videos to distill temporally coherent object-centric representations.
 
+## Updates
+
+There is an evaluation bug for ViT backbon in label propagation. Specifically, some images in DAVIS-2017 have height/width dimensions that are not multiples of the patch size, so that there will be information loss in the patch embedding process. To this end, we apply resize operation to guarantee that the height/width of all images are multiples of the patch size. And through this processing, the performance of ViT backbone is much higher than reported in the original DINO paper. And the gap between the DINO model and our tuned model becomes negligible both on the original size and interpolated size. And we believe there is much potential for ViT based model to achieve superior correspondence results than CNN based ones. We have also updated a new version on [arXiv](https://arxiv.org/abs/2308.09951).
+
 ## Requirements
 
 - Python 3.9
@@ -118,8 +122,8 @@ We follow the conventional evaluation protocols in previous works on unsupervise
 
 Here, we provide two examples respectively on semi-supervised label propagation task on DAVIS-2017 and unsupervised multiple object discovery on DAVIS-2017-Unsupervised.
 
-For label propagation task, run `eval_prop.sh`, it generates the semi-supervised segmentation results and outputs the J&F score. For multiple object discovery task, run `eval_multi.sh`, it produces the candidate object masks and calculates the J&F score.
+For multiple object discovery task, run `eval_multi.sh`, it produces the candidate object masks and calculates the J&F score. For label propagation task, run `eval_prop.sh`, it generates the semi-supervised segmentation results and outputs the J&F score. Note that in this script we provide two settings. The first is to perform label propagation on the original ViT-S/16 feature with downsample ratio of 16. The second is to first interpolate the ViT features into feature maps with downsample ratio of 8, the same as the prevalent CNN based models. The provided reference hyper-parameters may not be optimal, you are free to tune them for better performance.
 
 ## Pretrained Model
 
-We also provide a trained ViT-S/16 model with `num_slots=16` and `num_instances=4`. The model weight is availabel at this google drive [link](https://drive.google.com/file/d/1y0RSOMA7MEG15QqI6oK9bFil7MA-uI9N/view?usp=drive_link). This model is trained with the newly updated code with only 7k iterations. Since it is trained with relaxed valid instance filtering standard, the spatio-temporal correspondence quality slightly drops, with 65.2 J&F score on DAVIS-2017 Semi-supervised. But surprisingly, it performs better in unsupervised multiple object discovery, with 41.5 J&F score on DAVIS-2017 Unsupervised.
+We also provide a trained ViT-S/16 model with `num_slots=16` and `num_instances=4`. The model weight is availabel at this google drive [link](https://drive.google.com/file/d/162dtjPXQ2r4lghg6W5Vu8x2lRj0EJmtU/view?usp=drive_link). This model is trained with the newly updated code with `start_twostage.sh`. This model is trained with relaxed valid instance filtering standard, requiring fewer computations, achieving 64.0/67.6 J&F score on DAVIS-2017 Semi-supervised, 44.8 J&F score on DAVIS-2017 unsupervised multiple object discovery.

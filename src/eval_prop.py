@@ -25,9 +25,10 @@ def main(args, vis):
                                 out_channels=3,
                                 hid_dim=16,
                                 iters=3,
-                                dino_path='/mnt/data/mmlab_ie/qianrui/MG_factory/dino_small_16.pth')
+                                dino_path='dino_small_16.pth')
 
-    args.mapScale = 320 // np.array([40, 40])
+    args.mapScale = 320 // np.array([20, 20])
+    # args.mapScale = 320 // np.array([40, 40])
 
     dataset = vos.VOSDataset(args)
     val_loader = torch.utils.data.DataLoader(dataset,
@@ -60,6 +61,11 @@ def test(loader, model, args):
         imgs = imgs.to(args.device)
         B, N = imgs.shape[:2]
         assert(B == 1)
+
+        H, W = imgs.shape[-2:]
+        new_h = H // args.mapScale[0] * args.mapScale[0]
+        new_w = W // args.mapScale[1] * args.mapScale[1]
+        imgs = torch.nn.functional.interpolate(imgs, size=(3, new_h, new_w), mode='trilinear')
 
         print('******* Vid %s (%s frames) *******' % (vid_idx, N))
         with torch.no_grad():
