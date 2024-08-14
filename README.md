@@ -1,6 +1,6 @@
-# SMTC
+# Semantics Meets Temporal Correspondence: Self-supervised Object-centric Learning in Videos
 
-Code of ICCV paper [Semantics Meets Temporal Correspondence: Self-supervised Object-centric Learning in Videos](https://arxiv.org/abs/2308.09951). 
+Official Code of ICCV 2023 paper [Semantics Meets Temporal Correspondence: Self-supervised Object-centric Learning in Videos](https://arxiv.org/abs/2308.09951). 
 
 We propose a two-stage slot attention design, named semantic-aware masked slot attention, to jointly utilize rich semantics and fine-grained temporal correspondence in videos to distill temporally coherent object-centric representations.
 
