@@ -6,7 +6,7 @@ We propose a two-stage slot attention design, named semantic-aware masked slot a
 
 ## Updates
 
-There is an evaluation bug for ViT backbon in label propagation. Specifically, some images in DAVIS-2017 have height/width dimensions that are not multiples of the patch size, so that there will be information loss in the patch embedding process. To this end, we apply resize operation to guarantee that the height/width of all images are multiples of the patch size. And through this processing, the performance of ViT backbone is much higher than reported in the original DINO paper. And the gap between the DINO model and our tuned model becomes negligible both on the original size and interpolated size. And we believe there is much potential for ViT based model to achieve superior correspondence results than CNN based ones. We have also updated a new version on [arXiv](https://arxiv.org/abs/2308.09951).
+There is an evaluation bug for ViT backbone in label propagation. Specifically, some images in DAVIS-2017 have height/width dimensions that are not multiples of the patch size, so that there will be information loss in the patch embedding process. To this end, we apply resize operation to guarantee that the height/width of all images are multiples of the patch size. And through this processing, the performance of ViT backbone is much higher than reported in the original DINO paper. And the gap between the DINO model and our tuned model becomes negligible both on the original size and interpolated size. And we believe there is much potential for ViT based model to achieve superior correspondence results than CNN based ones. We have also updated a new version on [arXiv](https://arxiv.org/abs/2308.09951).
 
 ## Requirements
 
@@ -45,7 +45,7 @@ Since we only use YouTube-VOS data for fully self-supervised training, we do not
 
 #### Evaluation Data
 
-We use other video dataset for evaluation on unsupervised video object discovery as well as label propagation tasks, including DAVIS-2017, SegTrack-v2, FMBS-59, JHMDB, VIP. These dataset are formulated in the similar manner, and here we take DAVIS-2017 as an example.
+We use other video datasets for evaluation on unsupervised video object discovery as well as label propagation tasks, including DAVIS-2017, SegTrack-v2, FMBS-59, JHMDB, VIP. These datasets are formulated in the similar manner, and here we take DAVIS-2017 as an example.
 ```
 DAVIS
 |----JPEGImages
@@ -94,7 +94,7 @@ python -W ignore -m torch.distributed.launch --nproc_per_node=8 --use_env \
 ```
 It is flexible to adjust the number of slots (semantic centers) `num_slots`, the number of sampled slots (instances per semantic) `num_instances`, input frame length `num_frame` and rate `gap` to explore the impact of these import hyper-parameters.
 
-The original version sets a strict standard to filter the valid instances to ensure the high quality instance samples in training. Hence, it requires very long training iterations to let the model satisfy this standard. To address this limitation, we update a new version by relaxing the standard for valid instance sample filtering, so that the training requires much fewer computational resources and reaches a tradeoff between performance and efficiency. The newly introduced strategies include using lower threshold to filter valid activation area, freezing DINO pretrained ViT weights in the early stages of training, etc. For this efficient version, it only requires around 7k iterations to achieve promising results.
+The original version sets a strict standard to filter the valid instances to ensure the high quality instance samples in training. Hence, it requires very long training iterations to let the model satisfy this standard. To address this limitation, we update a new version by relaxing the standard for valid instance sample filtering, so that the training requires much fewer computational resources and reaches a tradeoff between performance and efficiency. The newly introduced strategies include using lower threshold to filter valid activation area, freezing DINO pretrained ViT weights in the early stages of training, etc. This efficient version only requires around 7k iterations to achieve promising results.
 
 ```
 python -W ignore -m torch.distributed.launch --nproc_per_node=4 --use_env \
@@ -126,4 +126,16 @@ For multiple object discovery task, run `eval_multi.sh`, it produces the candida
 
 ## Pretrained Model
 
-We also provide a trained ViT-S/16 model with `num_slots=16` and `num_instances=4`. The model weight is availabel at this google drive [link](https://drive.google.com/file/d/162dtjPXQ2r4lghg6W5Vu8x2lRj0EJmtU/view?usp=drive_link). This model is trained with the newly updated code with `start_twostage.sh`. This model is trained with relaxed valid instance filtering standard, requiring fewer computations, achieving 64.0/67.6 J&F score on DAVIS-2017 Semi-supervised, 44.8 J&F score on DAVIS-2017 unsupervised multiple object discovery.
+We also provide a trained ViT-S/16 model with `num_slots=16` and `num_instances=4`. The model weight is available at this google drive [link](https://drive.google.com/file/d/162dtjPXQ2r4lghg6W5Vu8x2lRj0EJmtU/view?usp=drive_link). This model is trained with the newly updated code with `start_twostage.sh`. This model is trained with a relaxed valid instance filtering standard, requiring fewer computations, achieving 64.0/67.6 J&F score on DAVIS-2017 Semi-supervised, 44.8 J&F score on DAVIS-2017 unsupervised multiple object discovery.
+
+## ✒Citation
+If you find our work helpful for your research, please consider giving a star ⭐ and citation 📝
+```bibtex
+@inproceedings{qian2023semantics,
+  title={Semantics meets temporal correspondence: Self-supervised object-centric learning in videos},
+  author={Qian, Rui and Ding, Shuangrui and Liu, Xian and Lin, Dahua},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
+  pages={16675--16687},
+  year={2023}
+}
+```
