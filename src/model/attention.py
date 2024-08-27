@@ -212,6 +212,70 @@ class BasicBlock(nn.Module):
 
         return out
 
+class STBlock(nn.Module):
+    def __init__(
+            self, dim, num_heads, mlp_ratio=4., qkv_bias=False, drop=0., attn_drop=0.,
+            act_layer=nn.GELU, norm_layer=nn.LayerNorm, window=False, num_frames=3, end_size=None):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop, 
+                              window=window, num_frames=num_frames, end_size=end_size)
+        self.time_norm1 = norm_layer(dim)
+        self.time_attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop, 
+                              window=window, num_frames=num_frames, end_size=end_size)
+        self.time_fc = nn.Linear(dim, dim)
+
+        self.norm2 = norm_layer(dim)
+        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer, drop=drop)
+        self.drop_path = DropPath(0.1)
+
+    def forward(self, x, S, T):
+        # x B 1+ST C
+        xt = x[:, 1:]
+        xt = einops.rearrange(xt, 'b (t s) c -> (b s) t c', t=T, s=S)
+        res_time = self.drop_path(self.time_attn(self.time_norm1(xt)))
+        res_time = einops.rearrange(res_time, '(b s) t c -> b (t s) c', s=S)
+        res_time = self.time_fc(res_time)
+        xt = x[:, 1:] + res_time
+
+        init_st_token = x[:, 0].unsqueeze(1)
+        st_token = init_st_token.repeat(1, T, 1)
+        st_token = einops.rearrange(st_token, 'b t c -> (b t) c').unsqueeze(1)
+        xs = xt
+        xs = einops.rearrange(xs, 'b (t s) c -> (b t) s c', t=T, s=S)
+        xs = torch.cat([st_token, xs], dim=1)
+        res_slot = self.drop_path(self.attn(self.norm1(xs)))
+
+        st_token = res_slot[:, 0]
+        st_token = einops.rearrange(st_token, '(b t) c -> b t c', t=T)
+        st_token = torch.mean(st_token, dim=1, keepdim=True)
+        res_slot = res_slot[:, 1:]
+        res_slot = einops.rearrange(res_slot, '(b t) s c -> b (t s) c', t=T)
+        x = xt
+
+        x = torch.cat((init_st_token, x), 1) + torch.cat((st_token, res_slot), 1)
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        return x
+
+class SlotBlock(nn.Module):
+    def __init__(
+            self, dim, num_heads, mlp_ratio=4., qkv_bias=False, drop=0., attn_drop=0.,
+            act_layer=nn.GELU, norm_layer=nn.LayerNorm, window=False, num_frames=3, end_size=None):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop, 
+                              window=window, num_frames=num_frames, end_size=end_size)
+        self.norm2 = norm_layer(dim)
+        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act_layer, drop=drop)
+        self.drop_path = DropPath(0.1)
+
+    def forward(self, x):
+        # x B T S C
+        x = einops.rearrange(x, 'b t s c -> (b t) s c')
+        x = x + self.drop_path(self.attn(self.norm1(x)))
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
+        return x
+
 class MEBlock(nn.Module):
     def __init__(self, channel, reduction=16):
         super(MEBlock, self).__init__()
