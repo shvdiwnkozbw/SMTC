@@ -102,3 +102,50 @@ class Dataloader(Dataset):
                 gts = np.stack([readSeg(gt_dir) for gt_dir in gt_dirs], axis=0)
                 return rgbs, gts, seq_name, [i for i in range(tot)]
                 
+
+class ActionData(Dataset):
+    def __init__(self, data_dir, resolution, seq_length=8, train=True):
+        self.eval = eval
+        self.img_dir = os.path.join(data_dir, '20bn-something-something-v2-frames')
+        self.resolution = resolution
+        self.seq_length = seq_length
+        self.train = train
+        if train:
+            video_folder = os.path.join(data_dir, 'labels', 'train_videofolder.txt')
+        else:
+            video_folder = os.path.join(data_dir, 'labels', 'val_videofolder.txt')
+        self.seq = {}
+        with open(video_folder, 'r') as f:
+            while True:
+                row = f.readline()
+                if not len(row):
+                    break
+                vid, frame, label = row.split(' ')
+                label = int(label[:-1]) if label.endswith('\n') else int(label)
+                self.seq[vid] = label
+        
+    def __len__(self):
+        return len(self.seq)
+
+    def __getitem__(self, idx):
+        if self.train:
+            seq_name = random.choice(list(self.seq.keys()))
+        else:
+            keys = list(self.seq.keys())
+            keys.sort()
+            seq_name = keys[idx]
+        label = self.seq[seq_name]
+        seq = os.path.join(self.img_dir, seq_name, '*.jpg')
+        imgs = gb.glob(seq)
+        imgs.sort()
+        length = len(imgs)
+        gap = length // self.seq_length
+        ind = random.randint(0, length-(self.seq_length-1)*gap-1)
+        
+        seq_ids = [ind+gap*i for i in range(self.seq_length)]
+
+        rgb_dirs = [imgs[i] for i in seq_ids]
+        rgbs = [readRGB(rgb_dir, self.resolution) for rgb_dir in rgb_dirs]
+        out_rgb = np.stack(rgbs, 0) ## T, C, H, W 
+        
+        return out_rgb, label
