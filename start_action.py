@@ -1,0 +1,21 @@
+python -W ignore -m torch.distributed.launch --nproc_per_node=8 --use_env \
+		src/train_action.py \
+        --batch_size 128 \
+        --seed 0 \
+        --num_iterations 3 \
+        --num_slots 8 \
+        --grad_iter 0 \
+        --num_o 0 \
+        --num_t 0 \
+        --lr 1e-4 \
+        --gap 4 \
+        --hidden_dim 32 \
+        --flow_to_rgb \
+        --num_frames 8 \
+        --student dino \
+        --teacher clip \
+        --correlation adapter \
+        --entro_cons \
+        --output_path test_log \
+        --dino_path dino_small_16.pth \
+		--dataset DAVIS
